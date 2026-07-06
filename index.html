@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TorqueX | Engineered for Adrenaline</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Syncopate:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        heading: ['Syncopate', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            500: '#e50000',
+                            600: '#cc0000',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --glass-bg: rgba(10, 10, 10, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.08);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #030303;
+            color: #ffffff;
+            overflow-x: hidden;
+            overscroll-behavior-y: none;
+        }
+
+        /* Hide Scrollbar but keep functionality */
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+
+        #webgl-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+            pointer-events: auto; /* Allow orbit controls when active */
+        }
+
+        #ui-layer {
+            position: relative;
+            z-index: 10;
+            pointer-events: none; /* Let clicks pass through to 3D by default */
+        }
+
+        .pointer-events-auto {
+            pointer-events: auto;
+        }
+
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .text-glow {
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+
+        .red-glow {
+            box-shadow: 0 0 15px rgba(229, 0, 0, 0.4);
+        }
+
+        /* Loading Screen */
+        #loader {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 1s ease-out;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 2px solid rgba(255,255,255,0.1);
+            border-top-color: #e50000;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* Scroll Sections */
+        .section {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding: 0 10vw;
+            position: relative;
+        }
+
+        .nav-btn {
+            transition: all 0.3s ease;
+        }
+        .nav-btn:hover {
+            background: rgba(255,255,255,0.1);
+            transform: translateY(-2px);
+        }
+        .nav-btn.active {
+            background: rgba(229, 0, 0, 0.2);
+            border-color: #e50000;
+        }
+
+        /* Color Swatches */
+        .color-swatch {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: transform 0.2s;
+        }
+        .color-swatch:hover { transform: scale(1.1); }
+        .color-swatch.active { border-color: white; transform: scale(1.1); }
+    </style>
+
+    <!-- GSAP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <!-- Loading Screen -->
+    <div id="loader">
+        <div class="spinner mb-6"></div>
+        <h1 class="font-heading text-2xl tracking-[0.3em] uppercase text-white">TorqueX</h1>
+        <p id="loading-text" class="text-gray-500 mt-2 font-mono text-sm tracking-widest">INITIALIZING ENGINE... 0%</p>
+    </div>
+
+    <!-- 3D Canvas Container -->
+    <div id="webgl-container"></div>
+
+    <!-- Scrollable Content Layer -->
+    <div id="ui-layer">
+        
+        <!-- Section 1: Hero -->
+        <section class="section" id="section-hero">
+            <div class="max-w-2xl pointer-events-auto">
+                <h1 class="font-heading text-5xl md:text-7xl font-bold mb-4 text-glow tracking-tighter">TORQUE<span class="text-brand-500">X</span></h1>
+                <p class="text-xl text-gray-300 font-light tracking-wide mb-8">Engineered for Adrenaline. Crafted for Perfection.</p>
+                <p class="text-sm text-gray-500 uppercase tracking-[0.2em] animate-pulse flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                    Scroll to Ignite
+                </p>
+            </div>
+        </section>
+
+        <!-- Section 2: Side Profile & Specs -->
+        <section class="section justify-end" id="section-specs">
+            <div class="max-w-md pointer-events-auto flex flex-col gap-6 w-full md:w-auto">
+                <div class="glass-panel p-6 rounded-2xl transform transition-transform hover:scale-105">
+                    <h3 class="font-heading text-brand-500 text-sm tracking-widest mb-1">POWER</h3>
+                    <p class="text-4xl font-bold">780 <span class="text-lg text-gray-400 font-normal">HP</span></p>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl transform transition-transform hover:scale-105">
+                    <h3 class="font-heading text-brand-500 text-sm tracking-widest mb-1">ENGINE</h3>
+                    <p class="text-4xl font-bold">4.0L <span class="text-lg text-gray-400 font-normal">Twin Turbo V8</span></p>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl transform transition-transform hover:scale-105">
+                    <h3 class="font-heading text-brand-500 text-sm tracking-widest mb-1">0-60 MPH</h3>
+                    <p class="text-4xl font-bold">2.8 <span class="text-lg text-gray-400 font-normal">SEC</span></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Rear & Aero -->
+        <section class="section" id="section-rear">
+            <div class="max-w-xl pointer-events-auto glass-panel p-8 rounded-3xl">
+                <h2 class="font-heading text-3xl mb-4">ACTIVE AERO</h2>
+                <p class="text-gray-300 leading-relaxed">
+                    The integrated carbon-fiber active spoiler deploys automatically at high speeds, generating massive downforce for unparalleled cornering stability.
+                </p>
+            </div>
+        </section>
+
+        <!-- Section 4: Configurator Activation -->
+        <section class="section justify-center text-center" id="section-config">
+            <div class="pointer-events-auto">
+                <h2 class="font-heading text-4xl mb-6">MAKE IT YOURS</h2>
+                <button id="enter-config-btn" class="glass-panel px-10 py-4 rounded-full font-heading tracking-widest text-sm hover:bg-white hover:text-black transition-all duration-500 red-glow">
+                    OPEN CONFIGURATOR
+                </button>
+            </div>
+        </section>
+        
+        <!-- Extra space for scrolling past config to keep it in view -->
+        <div style="height: 50vh;"></div>
+    </div>
+
+    <!-- Configurator Panel (Hidden by default) -->
+    <div id="config-panel" class="fixed right-0 top-0 h-full w-full md:w-96 glass-panel border-l border-white/10 p-8 transform translate-x-full transition-transform duration-700 ease-in-out z-40 pointer-events-auto flex flex-col">
+        <div class="flex justify-between items-center mb-10">
+            <h2 class="font-heading text-2xl">STUDIO</h2>
+            <button id="close-config-btn" class="text-gray-400 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto pr-2 scrollbar-hide">
+            <!-- Paint -->
+            <div class="mb-8">
+                <h3 class="text-xs text-gray-400 font-heading tracking-widest mb-4">EXTERIOR PAINT</h3>
+                <div class="flex flex-wrap gap-4">
+                    <div class="color-swatch active" style="background-color: #e50000;" data-color="#e50000" data-metalness="0.5" data-roughness="0.2"></div> <!-- Red -->
+                    <div class="color-swatch" style="background-color: #050505;" data-color="#050505" data-metalness="0.8" data-roughness="0.1"></div> <!-- Black -->
+                    <div class="color-swatch" style="background-color: #ffffff;" data-color="#ffffff" data-metalness="0.3" data-roughness="0.1"></div> <!-- White -->
+                    <div class="color-swatch" style="background-color: #silver; background: linear-gradient(135deg, #e0e0e0, #888888);" data-color="#c0c0c0" data-metalness="0.9" data-roughness="0.3"></div> <!-- Silver -->
+                    <div class="color-swatch" style="background-color: #0033cc;" data-color="#002288" data-metalness="0.6" data-roughness="0.2"></div> <!-- Blue -->
+                    <div class="color-swatch" style="background-color: #006622;" data-color="#003311" data-metalness="0.5" data-roughness="0.2"></div> <!-- Green -->
+                </div>
+            </div>
+
+            <!-- Toggles -->
+            <div class="mb-8 space-y-4">
+                <h3 class="text-xs text-gray-400 font-heading tracking-widest mb-4">FEATURES</h3>
+                
+                <div class="flex items-center justify-between glass-panel p-4 rounded-xl">
+                    <span class="text-sm font-medium tracking-wide">Headlights</span>
+                    <button id="toggle-lights" class="w-12 h-6 rounded-full bg-gray-700 relative transition-colors duration-300">
+                        <span class="absolute left-1 top-1 w-4 h-4 rounded-full bg-white transition-transform duration-300"></span>
+                    </button>
+                </div>
+
+                <div class="flex items-center justify-between glass-panel p-4 rounded-xl">
+                    <span class="text-sm font-medium tracking-wide">Active Spoiler</span>
+                    <button id="toggle-spoiler" class="w-12 h-6 rounded-full bg-gray-700 relative transition-colors duration-300">
+                        <span class="absolute left-1 top-1 w-4 h-4 rounded-full bg-white transition-transform duration-300"></span>
+                    </button>
+                </div>
+                
+                <div class="flex items-center justify-between glass-panel p-4 rounded-xl">
+                    <span class="text-sm font-medium tracking-wide">Brake Lights</span>
+                    <button id="toggle-brakes" class="w-12 h-6 rounded-full bg-gray-700 relative transition-colors duration-300">
+                        <span class="absolute left-1 top-1 w-4 h-4 rounded-full bg-white transition-transform duration-300"></span>
+                    </button>
+                </div>
+            </div>
+            
+            <button class="w-full py-4 mt-4 bg-brand-600 hover:bg-brand-500 rounded-xl font-heading text-sm tracking-widest transition-colors">
+                ORDER NOW
+            </button>
+        </div>
+    </div>
+
+    <!-- Camera Presets (Bottom Center, visible in Config Mode) -->
+    <div id="camera-controls" class="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-30 pointer-events-auto opacity-0 transition-opacity duration-500 flex gap-2 glass-panel p-2 rounded-full hidden">
+        <button class="nav-btn px-4 py-2 rounded-full text-xs font-heading tracking-widest" data-cam="front">FRONT</button>
+        <button class="nav-btn px-4 py-2 rounded-full text-xs font-heading tracking-widest active" data-cam="side">SIDE</button>
+        <button class="nav-btn px-4 py-2 rounded-full text-xs font-heading tracking-widest" data-cam="rear">REAR</button>
+        <button class="nav-btn px-4 py-2 rounded-full text-xs font-heading tracking-widest" data-cam="top">TOP</button>
+    </div>
+
+    <!-- Audio Toggle -->
+    <button id="audio-toggle" class="fixed top-8 right-8 z-30 pointer-events-auto glass-panel w-12 h-12 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clip-rule="evenodd"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" id="audio-off-cross"></path>
+        </svg>
+    </button>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // --- Core Variables ---
+        let scene, camera, renderer, composer, controls;
+        let carModel, bodyMaterial, wheels = [], headlights = [], taillights = [], spoiler;
+        let isConfigMode = false;
+        
+        // Audio Synthesizer context
+        let audioCtx, engineOscillator, engineFilter, engineGain;
+        let isAudioEnabled = false;
+
+        // Configuration State
+        const state = {
+            headlightsOn: false,
+            spoilerDeployed: false,
+            brakesOn: false
+        };
+
+        // DOM Elements
+        const loadingScreen = document.getElementById('loader');
+        const loadingText = document.getElementById('loading-text');
+        const configPanel = document.getElementById('config-panel');
+        const enterConfigBtn = document.getElementById('enter-config-btn');
+        const closeConfigBtn = document.getElementById('close-config-btn');
+        const cameraControls = document.getElementById('camera-controls');
+        
+        // Setup GSAP
+        gsap.registerPlugin(ScrollTrigger);
+
+        init();
+        
+        function init() {
+            const container = document.getElementById('webgl-container');
+
+            // 1. Scene Setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x030303);
+            scene.fog = new THREE.FogExp2(0x030303, 0.05);
+
+            // 2. Camera Setup
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(-5, 2, 6); // Initial hero position
+
+            // 3. Renderer Setup
+            renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // 4. Environment Lighting (Premium PBR reflections)
+            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            pmremGenerator.compileEquirectangularShader();
+            scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+            
+            // Add some cinematic studio lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+            scene.add(ambientLight);
+
+            const spotLight = new THREE.SpotLight(0xffffff, 50);
+            spotLight.position.set(0, 5, 0);
+            spotLight.angle = Math.PI / 4;
+            spotLight.penumbra = 0.5;
+            spotLight.castShadow = true;
+            spotLight.shadow.bias = -0.0001;
+            scene.add(spotLight);
+
+            // 5. Post-Processing (Bloom for lights/paint)
+            const renderScene = new RenderPass(scene, camera);
+            // Resolution, strength, radius, threshold
+            const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.5, 0.85);
+            
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+
+            // 6. Orbit Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 3;
+            controls.maxDistance = 10;
+            controls.maxPolarAngle = Math.PI / 2 - 0.05; // Don't go below ground
+            controls.target.set(0, 0.5, 0);
+            controls.enabled = false; // Disabled during scroll
+
+            // Floor setup
+            setupFloor();
+
+            // Load Model
+            loadCarModel();
+
+            // Events
+            window.addEventListener('resize', onWindowResize);
+            setupUI();
+            
+            // Start Loop
+            renderer.setAnimationLoop(animate);
+        }
+
+        function setupFloor() {
+            // Floor Mesh
+            const floorGeo = new THREE.PlaneGeometry(50, 50);
+            const floorMat = new THREE.MeshStandardMaterial({ 
+                color: 0x111111,
+                roughness: 0.1,
+                metalness: 0.5,
+            });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            // Grid Helper for hi-tech look
+            const grid = new THREE.GridHelper(50, 100, 0x222222, 0x0a0a0a);
+            grid.position.y = 0.01;
+            grid.material.opacity = 0.2;
+            grid.material.transparent = true;
+            scene.add(grid);
+
+            // Simple Smoke Particles
+            const particleGeo = new THREE.BufferGeometry();
+            const particleCount = 200;
+            const posArray = new Float32Array(particleCount * 3);
+            for(let i = 0; i < particleCount * 3; i++) {
+                posArray[i] = (Math.random() - 0.5) * 8; // Spread
+            }
+            particleGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            
+            // Create a procedural soft circle texture for particles
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+            gradient.addColorStop(0, 'rgba(255,255,255,1)');
+            gradient.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0,0,32,32);
+            const particleTexture = new THREE.CanvasTexture(canvas);
+
+            const particleMat = new THREE.PointsMaterial({
+                size: 0.5,
+                map: particleTexture,
+                transparent: true,
+                opacity: 0.1,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                color: 0x555555
+            });
+
+            const particlesMesh = new THREE.Points(particleGeo, particleMat);
+            particlesMesh.position.y = 0.2;
+            scene.add(particlesMesh);
+
+            // Animate particles in the render loop
+            scene.userData.particles = particlesMesh;
+        }
+
+        function loadCarModel() {
+            const dracoLoader = new DRACOLoader();
+            dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
+
+            const loader = new GLTFLoader();
+            loader.setDRACOLoader(dracoLoader);
+
+            // Using the official three.js Ferrari test model (highly reliable URL)
+            const carUrl = 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/models/gltf/ferrari.glb';
+
+            loader.load(carUrl, function (gltf) {
+                carModel = gltf.scene;
+                
+                // Adjust scale and position based on the specific model
+                carModel.scale.set(1, 1, 1);
+                
+                const box = new THREE.Box3().setFromObject(carModel);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+                
+                // Center the car on the floor
+                carModel.position.x += (carModel.position.x - center.x);
+                carModel.position.z += (carModel.position.z - center.z);
+                carModel.position.y = 0; // Assuming origin is bottom
+
+                // Customize Materials and prepare parts
+                processCarMaterials(carModel);
+
+                // Add synthetic spoiler since the model doesn't have one
+                addProceduralSpoiler();
+
+                // Add Light sources to the car
+                addCarLights();
+
+                scene.add(carModel);
+
+                // Hide loader
+                gsap.to(loadingScreen, {
+                    opacity: 0,
+                    duration: 1,
+                    onComplete: () => {
+                        loadingScreen.style.display = 'none';
+                        initScrollAnimations();
+                    }
+                });
+
+            }, function (xhr) {
+                if (xhr.lengthComputable) {
+                    const percentComplete = xhr.loaded / xhr.total * 100;
+                    loadingText.innerText = `INITIALIZING ENGINE... ${Math.round(percentComplete)}%`;
+                }
+            }, function (error) {
+                console.error('Error loading car:', error);
+                loadingText.innerText = "SYSTEM FAILURE: ASSET NOT FOUND";
+                loadingText.style.color = "red";
+            });
+        }
+
+        function processCarMaterials(model) {
+            // Create a premium physical material for the car body
+            bodyMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0xe50000,
+                metalness: 0.5,
+                roughness: 0.2,
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.03,
+                sheen: 0.5,
+                sheenColor: 0xffffff,
+                sheenRoughness: 0.5
+            });
+
+            // Glass material
+            const glassMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0x000000,
+                metalness: 0.9,
+                roughness: 0.1,
+                transmission: 0.9, // glass effect
+                transparent: true,
+                ior: 1.5,
+                thickness: 0.1
+            });
+
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+
+                    // The ferrari model parts identification
+                    if (child.name === 'body') {
+                        child.material = bodyMaterial;
+                    } else if (child.name === 'glass') {
+                        child.material = glassMaterial;
+                    } else if (child.name.includes('rim')) {
+                        child.material = new THREE.MeshStandardMaterial({
+                            color: 0x222222,
+                            metalness: 0.9,
+                            roughness: 0.2
+                        });
+                        wheels.push(child); // save reference for rotation
+                    } else if (child.name === 'interior') {
+                        child.material.color.setHex(0x111111);
+                        child.material.roughness = 0.8;
+                    }
+                }
+            });
+        }
+
+        function addProceduralSpoiler() {
+            const spoilerGroup = new THREE.Group();
+            
+            // Spoiler Wing
+            const wingGeo = new THREE.BoxGeometry(1.8, 0.05, 0.3);
+            // Carbon fiber look approximation
+            const wingMat = new THREE.MeshStandardMaterial({
+                color: 0x111111,
+                roughness: 0.4,
+                metalness: 0.6
+            });
+            const wing = new THREE.Mesh(wingGeo, wingMat);
+            wing.position.y = 0.2;
+            wing.castShadow = true;
+            spoilerGroup.add(wing);
+
+            // Struts
+            const strutGeo = new THREE.BoxGeometry(0.05, 0.2, 0.1);
+            const strut1 = new THREE.Mesh(strutGeo, wingMat);
+            strut1.position.set(-0.6, 0.1, 0);
+            spoilerGroup.add(strut1);
+            
+            const strut2 = new THREE.Mesh(strutGeo, wingMat);
+            strut2.position.set(0.6, 0.1, 0);
+            spoilerGroup.add(strut2);
+
+            // Position at the back of the car (approximate for the Ferrari model)
+            spoilerGroup.position.set(0, 0.8, -2.1);
+            
+            // Initially hidden/retracted
+            spoilerGroup.position.y = 0.7;
+            spoilerGroup.scale.y = 0.1;
+            spoilerGroup.visible = false;
+            
+            carModel.add(spoilerGroup);
+            spoiler = spoilerGroup;
+        }
+
+        function addCarLights() {
+            // Headlights
+            const headLightColor = 0xeef5ff;
+            const hlIntensity = 0; // Start off
+            
+            const hlLeft = new THREE.SpotLight(headLightColor, hlIntensity);
+            hlLeft.position.set(-0.7, 0.6, 2.0);
+            hlLeft.target.position.set(-0.7, 0, 10);
+            hlLeft.angle = Math.PI / 6;
+            hlLeft.penumbra = 0.2;
+            hlLeft.distance = 20;
+            carModel.add(hlLeft);
+            carModel.add(hlLeft.target);
+            headlights.push(hlLeft);
+
+            const hlRight = new THREE.SpotLight(headLightColor, hlIntensity);
+            hlRight.position.set(0.7, 0.6, 2.0);
+            hlRight.target.position.set(0.7, 0, 10);
+            hlRight.angle = Math.PI / 6;
+            hlRight.penumbra = 0.2;
+            hlRight.distance = 20;
+            carModel.add(hlRight);
+            carModel.add(hlRight.target);
+            headlights.push(hlRight);
+
+            // Taillights (using point lights for glowing effect)
+            const tailColor = 0xff0000;
+            const tlLeft = new THREE.PointLight(tailColor, 0, 2);
+            tlLeft.position.set(-0.6, 0.7, -2.3);
+            carModel.add(tlLeft);
+            taillights.push(tlLeft);
+
+            const tlRight = new THREE.PointLight(tailColor, 0, 2);
+            tlRight.position.set(0.6, 0.7, -2.3);
+            carModel.add(tlRight);
+            taillights.push(tlRight);
+        }
+
+        function initScrollAnimations() {
+            // Create a single timeline linked to scroll
+            const tl = gsap.timeline({
+                scrollTrigger: {
+                    trigger: "#ui-layer",
+                    start: "top top",
+                    end: "bottom bottom",
+                    scrub: 1, // Smooth scrubbing
+                    onUpdate: (self) => {
+                        // Engine sound revving based on scroll speed
+                        if (isAudioEnabled && engineFilter) {
+                            const speed = Math.abs(self.getVelocity());
+                            gsap.to(engineFilter.frequency, {
+                                value: 100 + Math.min(speed * 2, 2000),
+                                duration: 0.2
+                            });
+                        }
+                    }
+                }
+            });
+
+            // Initial Hero State
+            // Camera front-left, looking at car
+
+            // Transition to Section 2: Side Profile
+            tl.to(camera.position, {
+                x: -5,
+                y: 1.5,
+                z: -1,
+                ease: "power2.inOut"
+            }, 0);
+            tl.to(controls.target, {
+                x: 0, y: 0.5, z: 0
+            }, 0);
+
+            // Transition to Section 3: Rear & Aero
+            tl.to(camera.position, {
+                x: 3,
+                y: 1.5,
+                z: -4,
+                ease: "power2.inOut"
+            }, 1);
+            
+            // Auto Deploy Spoiler on reaching Rear section
+            tl.to({}, {
+                onUpdate: function() {
+                    if(this.progress() > 0.8 && !state.spoilerDeployed && !isConfigMode) {
+                        toggleSpoilerState(true);
+                    } else if (this.progress() < 0.8 && state.spoilerDeployed && !isConfigMode) {
+                        toggleSpoilerState(false);
+                    }
+                }
+            }, 1);
+            
+            // Auto Brake lights
+            tl.to({}, {
+                onUpdate: function() {
+                    if(this.progress() > 0.5 && this.progress() < 0.9 && !isConfigMode) {
+                        toggleBrakeState(true);
+                    } else if (!isConfigMode) {
+                        toggleBrakeState(false);
+                    }
+                }
+            }, 1);
+
+            // Transition to Section 4: Configurator setup
+            tl.to(camera.position, {
+                x: -4,
+                y: 2,
+                z: 4,
+                ease: "power1.inOut"
+            }, 2);
+            
+            // Slow car rotation during scroll
+            tl.to(carModel.rotation, {
+                y: Math.PI * 0.1,
+                ease: "none"
+            }, 0);
+        }
+
+        function setupUI() {
+            // Configurator Toggle
+            enterConfigBtn.addEventListener('click', () => {
+                isConfigMode = true;
+                
+                // Hide scroll layout
+                gsap.to('.section', { opacity: 0, pointerEvents: 'none', duration: 0.5 });
+                document.body.style.overflow = 'hidden'; // Stop scrolling
+                
+                // Show Config UI
+                configPanel.classList.remove('translate-x-full');
+                cameraControls.classList.remove('hidden');
+                setTimeout(() => cameraControls.classList.remove('opacity-0'), 100);
+
+                // Enable 3D Controls
+                controls.enabled = true;
+                
+                // Reset Car Rotation
+                gsap.to(carModel.rotation, { y: 0, duration: 1 });
+                
+                // Move camera to standard 3/4 view
+                moveCamera(-4, 2, 4);
+            });
+
+            closeConfigBtn.addEventListener('click', () => {
+                isConfigMode = false;
+                
+                // Show scroll layout
+                gsap.to('.section', { opacity: 1, pointerEvents: 'auto', duration: 0.5 });
+                document.body.style.overflow = 'auto'; // Restore scrolling
+                
+                // Hide Config UI
+                configPanel.classList.add('translate-x-full');
+                cameraControls.classList.add('opacity-0');
+                setTimeout(() => cameraControls.classList.add('hidden'), 500);
+
+                // Disable 3D Controls
+                controls.enabled = false;
+            });
+
+            // Color Swatches
+            document.querySelectorAll('.color-swatch').forEach(swatch => {
+                swatch.addEventListener('click', (e) => {
+                    document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+                    e.target.classList.add('active');
+                    
+                    const color = e.target.dataset.color;
+                    const metalness = parseFloat(e.target.dataset.metalness);
+                    const roughness = parseFloat(e.target.dataset.roughness);
+                    
+                    if (bodyMaterial) {
+                        gsap.to(bodyMaterial.color, {
+                            r: new THREE.Color(color).r,
+                            g: new THREE.Color(color).g,
+                            b: new THREE.Color(color).b,
+                            duration: 0.5
+                        });
+                        gsap.to(bodyMaterial, {
+                            metalness: metalness,
+                            roughness: roughness,
+                            duration: 0.5
+                        });
+                    }
+                });
+            });
+
+            // Feature Toggles (UI buttons)
+            setupToggle('toggle-lights', (isOn) => {
+                state.headlightsOn = isOn;
+                const intensity = isOn ? 100 : 0;
+                headlights.forEach(hl => {
+                    gsap.to(hl, { intensity: intensity, duration: 0.3 });
+                });
+            });
+
+            setupToggle('toggle-spoiler', (isOn) => {
+                toggleSpoilerState(isOn);
+            });
+
+            setupToggle('toggle-brakes', (isOn) => {
+                toggleBrakeState(isOn);
+            });
+
+            // Camera Presets
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active', 'bg-brand-500/20', 'border-brand-500'));
+                    e.target.classList.add('active');
+                    
+                    const cam = e.target.dataset.cam;
+                    switch(cam) {
+                        case 'front': moveCamera(0, 1.5, 6); break;
+                        case 'side': moveCamera(-6, 1.5, 0); break;
+                        case 'rear': moveCamera(0, 1.5, -6); break;
+                        case 'top': moveCamera(0, 7, 0.1); break;
+                    }
+                });
+            });
+
+            // Audio Toggle
+            document.getElementById('audio-toggle').addEventListener('click', toggleAudio);
+        }
+
+        // Helper for custom toggle buttons
+        function setupToggle(id, callback) {
+            const btn = document.getElementById(id);
+            const knob = btn.querySelector('span');
+            let isOn = false;
+            
+            btn.addEventListener('click', () => {
+                isOn = !isOn;
+                if(isOn) {
+                    btn.classList.replace('bg-gray-700', 'bg-brand-500');
+                    knob.classList.add('translate-x-6');
+                } else {
+                    btn.classList.replace('bg-brand-500', 'bg-gray-700');
+                    knob.classList.remove('translate-x-6');
+                }
+                callback(isOn);
+            });
+        }
+
+        // Action Helpers
+        function toggleSpoilerState(isOn) {
+            state.spoilerDeployed = isOn;
+            if(!spoiler) return;
+            
+            if(isOn) {
+                spoiler.visible = true;
+                gsap.to(spoiler.position, { y: 0.9, duration: 0.5, ease: "back.out(1.7)" });
+                gsap.to(spoiler.scale, { y: 1, duration: 0.5 });
+            } else {
+                gsap.to(spoiler.position, { y: 0.7, duration: 0.5, ease: "power2.in" });
+                gsap.to(spoiler.scale, { y: 0.1, duration: 0.5, onComplete: () => { spoiler.visible = false; } });
+            }
+        }
+
+        function toggleBrakeState(isOn) {
+            state.brakesOn = isOn;
+            const intensity = isOn ? 10 : 0;
+            taillights.forEach(tl => {
+                gsap.to(tl, { intensity: intensity, duration: 0.2 });
+            });
+        }
+
+        function moveCamera(x, y, z) {
+            gsap.to(camera.position, {
+                x: x, y: y, z: z,
+                duration: 1.5,
+                ease: "power3.inOut"
+            });
+            gsap.to(controls.target, {
+                x: 0, y: 0.5, z: 0,
+                duration: 1.5,
+                ease: "power3.inOut"
+            });
+        }
+
+        function toggleAudio() {
+            const btn = document.getElementById('audio-toggle');
+            const cross = document.getElementById('audio-off-cross');
+            
+            if(!audioCtx) {
+                // Initialize Audio Synthesis
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Create a low rumbling oscillator
+                engineOscillator = audioCtx.createOscillator();
+                engineOscillator.type = 'sawtooth';
+                engineOscillator.frequency.value = 40; // Low idle rumble
+                
+                // Filter to muffle it and make it sound like an engine
+                engineFilter = audioCtx.createBiquadFilter();
+                engineFilter.type = 'lowpass';
+                engineFilter.frequency.value = 100;
+                engineFilter.Q.value = 5;
+
+                // Gain (Volume)
+                engineGain = audioCtx.createGain();
+                engineGain.gain.value = 0; // Start silent
+
+                engineOscillator.connect(engineFilter);
+                engineFilter.connect(engineGain);
+                engineGain.connect(audioCtx.destination);
+                
+                engineOscillator.start();
+            }
+
+            if(audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            isAudioEnabled = !isAudioEnabled;
+
+            if(isAudioEnabled) {
+                cross.style.display = 'none';
+                btn.classList.add('text-brand-500');
+                btn.classList.remove('text-gray-400');
+                
+                // Fade in engine sound
+                engineGain.gain.setTargetAtTime(0.3, audioCtx.currentTime, 0.5);
+            } else {
+                cross.style.display = 'block';
+                btn.classList.remove('text-brand-500');
+                btn.classList.add('text-gray-400');
+                
+                // Fade out
+                engineGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.5);
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            // Update OrbitControls
+            if (controls.enabled) controls.update();
+
+            // Animate Background Particles
+            if (scene.userData.particles) {
+                const positions = scene.userData.particles.geometry.attributes.position.array;
+                for(let i = 1; i < positions.length; i += 3) {
+                    positions[i] += 0.01; // move up
+                    if (positions[i] > 3) positions[i] = 0; // reset
+                }
+                scene.userData.particles.geometry.attributes.position.needsUpdate = true;
+            }
+
+            // Spin wheels if in config mode (showcasing)
+            if (isConfigMode && carModel && !controls.state) {
+                // Auto orbit camera slowly if user isn't interacting
+                // (OrbitControls handles autoRotate, but we want custom slow rotation)
+                carModel.rotation.y += 0.002;
+                
+                // Rotate wheels
+                wheels.forEach(wheel => {
+                    wheel.rotation.x += 0.01;
+                });
+            }
+
+            // Render scene via Composer (for Bloom)
+            composer.render();
+        }
+    </script>
+</body>
+</html>
