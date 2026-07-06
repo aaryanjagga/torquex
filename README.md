@@ -32,9 +32,6 @@ TorqueX is a premium **3D sports car showcase** built using **HTML, CSS, and Jav
 ```text
 TorqueX/
 ├── index.html
-├── style.css
-├── script.js
-
 ```
 
 📄 License
